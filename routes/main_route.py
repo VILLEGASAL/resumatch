@@ -1,4 +1,6 @@
 from fastapi import APIRouter, File, UploadFile
+from services.services import extract_text_from_file
+import fitz 
 import os
 import shutil
 
@@ -26,3 +28,10 @@ async def upload_file(file: UploadFile = File(...)):
         "filename": file.filename,
         "content_type": file.content_type
     }
+
+@main_route.get("/read_pdf_text")
+async def read_pdf():
+
+    await extract_text_from_file("RESUME_AL_RANDOLPH_VILLEGAS.pdf")
+
+    return 0
