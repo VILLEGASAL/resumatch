@@ -1,37 +1,34 @@
-from fastapi import APIRouter, File, UploadFile
-from services.services import extract_text_from_file
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException
+from services.services import extract_text_from_file, evaluate_resume
 import fitz 
 import os
 import shutil
 
 main_route = APIRouter()
 
-# Directory to save the uploaded files
-UPLOAD_DIR = "uploaded_files"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+@main_route.post("/evaluate_resume/")
+async def evaluate_applicant(job_description:str = Form(...), resume_file: UploadFile = File(...)):
 
-@main_route.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
+    #Check if file is in pdf format
+    if resume_file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-    
-    # Read the uploaded file and save to the local disk
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    finally:
-        #Close the file to free up memory
-        file.file.close() 
-        
-    return {
-        "message": "File uploaded successfully",
-        "filename": file.filename,
-        "content_type": file.content_type
-    }
+        #Extract the text in the PDF
+        resume_texts = await extract_text_from_file(resume_file)
+    
+        # Check if the PDF was empty or unreadable
+        if not resume_texts.strip():
+             raise HTTPException(status_code=400, detail="Could not extract text from the PDF.")
 
-@main_route.get("/read_pdf_text")
-async def read_pdf():
+        # Asses
+        result = await evaluate_resume(job_description, resume_texts)
 
-    await extract_text_from_file("RESUME_AL_RANDOLPH_VILLEGAS.pdf")
 
-    return 0
+        print(result)
+        return result
+
+    except Exception as e:
+        # Catch any errors (like Gemini API timeouts) and return a clean error
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
